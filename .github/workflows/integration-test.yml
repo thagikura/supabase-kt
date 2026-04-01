@@ -29,6 +29,22 @@ jobs:
       - name: Start Supabase
         run: supabase start --workdir integration-test
 
+      - name: Enable passkeys on auth container
+        run: |
+          docker inspect supabase_auth_supabase-kt-tests -f '{{range .Config.Env}}{{println .}}{{end}}' > /tmp/gotrue_env.txt
+          AUTH_IMAGE=$(docker inspect supabase_auth_supabase-kt-tests --format '{{.Config.Image}}')
+          docker stop supabase_auth_supabase-kt-tests
+          docker rm supabase_auth_supabase-kt-tests
+          docker run -d --name supabase_auth_supabase-kt-tests \
+            --network supabase_network_supabase-kt-tests \
+            --env-file /tmp/gotrue_env.txt \
+            -e GOTRUE_PASSKEY_ENABLED=true \
+            -e GOTRUE_WEBAUTHN_RP_ID=localhost \
+            -e GOTRUE_WEBAUTHN_RP_ORIGINS=http://localhost:54321 \
+            -e GOTRUE_WEBAUTHN_RP_DISPLAY_NAME=supabase-kt-tests \
+            $AUTH_IMAGE gotrue
+          sleep 3
+
       - name: Export Supabase env vars
         run: |
           echo "SUPABASE_URL=$(supabase status --workdir integration-test --output json | jq -r '.API_URL')" >> $GITHUB_ENV
