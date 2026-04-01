@@ -63,13 +63,17 @@ internal class PasskeyApiImpl(
     private val authenticatedApi: SupabaseHttpClient,
     private val publicApi: SupabaseHttpClient,
     private val auth: Auth,
-    internal val credentialHandler: PasskeyCredentialHandler
+    internal val credentialHandler: PasskeyCredentialHandler?
 ) : PasskeyApi {
 
+    private fun requireHandler(): PasskeyCredentialHandler =
+        credentialHandler ?: error("Passkey authentication is not supported on this platform. Set passkeyCredentialHandler in AuthConfig to provide a handler.")
+
     override suspend fun signIn(saveSession: Boolean): UserSession {
+        val handler = requireHandler()
         val challenge: PasskeyChallengeResponse =
             publicApi.postJson("passkeys/authentication/options", buildJsonObject { }).safeBody()
-        val credentialResponse = credentialHandler.get(challenge.options)
+        val credentialResponse = handler.get(challenge.options)
         val session: UserSession = publicApi.postJson(
             "passkeys/authentication/verify",
             PasskeyVerifyRequest(
@@ -84,9 +88,10 @@ internal class PasskeyApiImpl(
     }
 
     override suspend fun register(friendlyName: String?): Passkey {
+        val handler = requireHandler()
         val challenge: PasskeyChallengeResponse =
             authenticatedApi.postJson("passkeys/registration/options", buildJsonObject { }).safeBody()
-        val credentialResponse = credentialHandler.create(challenge.options)
+        val credentialResponse = handler.create(challenge.options)
         return authenticatedApi.postJson(
             "passkeys/registration/verify",
             PasskeyVerifyRequest(

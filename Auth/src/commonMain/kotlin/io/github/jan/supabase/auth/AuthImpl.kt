@@ -31,7 +31,6 @@ import io.github.jan.supabase.auth.mfa.MfaApi
 import io.github.jan.supabase.auth.mfa.MfaApiImpl
 import io.github.jan.supabase.auth.passkey.PasskeyApi
 import io.github.jan.supabase.auth.passkey.PasskeyApiImpl
-import io.github.jan.supabase.auth.passkey.createPasskeyCredentialHandler
 import io.github.jan.supabase.auth.providers.AuthProvider
 import io.github.jan.supabase.auth.providers.ExternalAuthConfigDefaults
 import io.github.jan.supabase.auth.providers.IDTokenProvider
@@ -121,7 +120,7 @@ internal class AuthImpl(
     override val admin: AdminApi = AdminApiImpl(publicApi)
     override val mfa: MfaApi = MfaApiImpl(userApi.resolve("factors"), this)
     @OptIn(SupabaseInternal::class)
-    override val passkeys: PasskeyApi = PasskeyApiImpl(userApi, unauthenticatedApi, this, createPasskeyCredentialHandler())
+    override val passkeys: PasskeyApi = PasskeyApiImpl(userApi, unauthenticatedApi, this, config.passkeyCredentialHandler)
     var sessionJob: Job? = null
     var refreshInformation: SessionRefreshInformation? = null
     override val isAutoRefreshRunning: Boolean

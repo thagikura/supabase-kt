@@ -1,6 +1,7 @@
 package io.github.jan.supabase.auth
 
 import io.github.jan.supabase.annotations.SupabaseInternal
+import io.github.jan.supabase.auth.passkey.createBrowserPasskeyCredentialHandler
 import io.ktor.util.PlatformUtils.IS_BROWSER
 
 /**
@@ -18,5 +19,10 @@ actual class AuthConfig: AuthConfigDefaults() {
      */
     @SupabaseInternal
     var browserBridge: BrowserBridge? = if(IS_BROWSER) BrowserBridgeImpl() else null
+
+    init {
+        @OptIn(SupabaseInternal::class)
+        passkeyCredentialHandler = createBrowserPasskeyCredentialHandler()
+    }
 
 }

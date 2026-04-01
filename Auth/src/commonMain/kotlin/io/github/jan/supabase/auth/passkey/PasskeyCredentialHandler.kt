@@ -24,6 +24,3 @@ interface PasskeyCredentialHandler {
      */
     suspend fun get(options: JsonObject): JsonObject
 }
-
-@SupabaseInternal
-expect fun createPasskeyCredentialHandler(): PasskeyCredentialHandler

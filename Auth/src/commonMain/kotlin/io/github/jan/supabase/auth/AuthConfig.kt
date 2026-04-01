@@ -6,6 +6,7 @@ import io.github.jan.supabase.SupabaseSerializer
 import io.github.jan.supabase.annotations.SupabaseExperimental
 import io.github.jan.supabase.annotations.SupabaseInternal
 import io.github.jan.supabase.auth.jwt.JwkCache
+import io.github.jan.supabase.auth.passkey.PasskeyCredentialHandler
 import io.github.jan.supabase.auth.jwt.SharedJwkCache
 import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.plugins.CustomSerializationConfig
@@ -113,6 +114,14 @@ open class AuthConfigDefaults : MainConfig(), AuthDependentPluginConfig, CustomS
      */
     @SupabaseInternal
     var autoSetupPlatform: Boolean = true
+
+    /**
+     * The credential handler for passkey (WebAuthn) ceremonies. By default, null on platforms
+     * that don't support WebAuthn. Set automatically on supported platforms (e.g., browser).
+     * Can be overridden for testing.
+     */
+    @SupabaseInternal
+    var passkeyCredentialHandler: PasskeyCredentialHandler? = null
 
     /**
      * Whether to check if the current session is expired on an authenticated request and possibly try to refresh it.
