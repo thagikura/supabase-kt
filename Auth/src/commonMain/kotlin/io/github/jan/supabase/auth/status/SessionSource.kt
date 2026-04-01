@@ -58,4 +58,9 @@ sealed interface SessionSource {
      * @param oldSession The old session
      */
     data class UserIdentitiesChanged(val oldSession: UserSession) : SessionSource
+
+    /**
+     * The session was loaded from a passkey (WebAuthn) sign-in
+     */
+    data object PasskeySignIn : SessionSource
 }
