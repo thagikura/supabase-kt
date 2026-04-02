@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Passkey Integration Test</title>
+    <style>
+        body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+        button { padding: 8px 16px; margin: 4px; cursor: pointer; }
+        button:disabled { opacity: 0.5; }
+        .log { background: #f4f4f4; padding: 12px; margin: 8px 0; border-radius: 4px; white-space: pre-wrap; word-break: break-all; }
+        .error { background: #ffe0e0; }
+        .success { background: #e0ffe0; }
+        h2 { margin-top: 24px; }
+        input { padding: 6px; margin: 4px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>Passkey (WebAuthn) Integration Test</h1>
+    <p>Tests the full passkey ceremony against local Supabase (http://127.0.0.1:54321).</p>
+    <p>Requires: <code>GOTRUE_PASSKEY_ENABLED=true</code> on the auth container.</p>
+
+    <h2>Config</h2>
+    <div>
+        <label>Supabase URL: <input id="url" value="http://127.0.0.1:54321"></label><br>
+        <label>Anon Key: <input id="anonKey" value="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"></label>
+    </div>
+
+    <h2>Step 1: Create a test user</h2>
+    <div>
+        <label>Email: <input id="email" value=""></label>
+        <label>Password: <input id="password" value="test-password-123!"></label>
+        <button onclick="signUp()">Sign Up</button>
+    </div>
+
+    <h2>Step 2: Register a passkey</h2>
+    <button id="btnRegister" onclick="registerPasskey()" disabled>Register Passkey</button>
+
+    <h2>Step 3: List passkeys</h2>
+    <button id="btnList" onclick="listPasskeys()" disabled>List Passkeys</button>
+
+    <h2>Step 4: Sign out and sign in with passkey</h2>
+    <button id="btnSignIn" onclick="signInWithPasskey()">Sign In with Passkey</button>
+
+    <h2>Log</h2>
+    <div id="logContainer"></div>
+
+    <script>
+    let accessToken = null;
+
+    function getUrl() { return document.getElementById('url').value; }
+    function getAnonKey() { return document.getElementById('anonKey').value; }
+
+    function log(msg, type) {
+        const div = document.createElement('div');
+        div.className = 'log' + (type === 'error' ? ' error' : type === 'success' ? ' success' : '');
+        div.textContent = typeof msg === 'string' ? msg : JSON.stringify(msg, null, 2);
+        document.getElementById('logContainer').prepend(div);
+    }
+
+    async function authFetch(path, options = {}) {
+        const headers = {
+            'apikey': getAnonKey(),
+            'Content-Type': 'application/json',
+            ...options.headers
+        };
+        if (accessToken) {
+            headers['Authorization'] = 'Bearer ' + accessToken;
+        }
+        const res = await fetch(getUrl() + '/auth/v1' + path, { ...options, headers });
+        const body = await res.text();
+        let json;
+        try { json = JSON.parse(body); } catch { json = body; }
+        if (!res.ok) throw { status: res.status, body: json };
+        return json;
+    }
+
+    // --- Step 1: Sign up ---
+    async function signUp() {
+        try {
+            const email = document.getElementById('email').value || 'passkey-test-' + Date.now() + '@example.com';
+            document.getElementById('email').value = email;
+            const password = document.getElementById('password').value;
+            log('Signing up as ' + email + '...');
+            const data = await authFetch('/signup', {
+                method: 'POST',
+                body: JSON.stringify({ email, password })
+            });
+            accessToken = data.access_token;
+            log('Signed up. access_token: ' + accessToken.substring(0, 30) + '...', 'success');
+            document.getElementById('btnRegister').disabled = false;
+            document.getElementById('btnList').disabled = false;
+        } catch (e) {
+            log('Sign up failed: ' + JSON.stringify(e), 'error');
+        }
+    }
+
+    // --- Base64url helpers ---
+    function b64urlToBuffer(b64url) {
+        let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+    }
+
+    function bufferToB64url(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    // --- Step 2: Register passkey ---
+    async function registerPasskey() {
+        try {
+            log('Fetching registration options...');
+            const challenge = await authFetch('/passkeys/registration/options', {
+                method: 'POST',
+                body: '{}'
+            });
+            log('Got challenge: ' + challenge.challenge_id);
+            log(challenge);
+
+            const pk = challenge.options.publicKey || challenge.options;
+
+            // Convert base64url to ArrayBuffer
+            if (pk.challenge) pk.challenge = b64urlToBuffer(pk.challenge);
+            if (pk.user && pk.user.id) pk.user.id = b64urlToBuffer(pk.user.id);
+            if (pk.excludeCredentials) {
+                pk.excludeCredentials = pk.excludeCredentials.map(c => ({...c, id: b64urlToBuffer(c.id)}));
+            }
+
+            log('Starting WebAuthn ceremony (browser prompt)...');
+            const credential = await navigator.credentials.create({ publicKey: pk });
+            log('Credential created: ' + credential.id, 'success');
+
+            // Serialize response
+            const credentialResponse = {
+                id: credential.id,
+                rawId: bufferToB64url(credential.rawId),
+                response: {
+                    attestationObject: bufferToB64url(credential.response.attestationObject),
+                    clientDataJSON: bufferToB64url(credential.response.clientDataJSON)
+                },
+                type: credential.type,
+                authenticatorAttachment: credential.authenticatorAttachment || null,
+                clientExtensionResults: credential.getClientExtensionResults()
+            };
+
+            log('Verifying with server...');
+            const result = await authFetch('/passkeys/registration/verify', {
+                method: 'POST',
+                body: JSON.stringify({
+                    challenge_id: challenge.challenge_id,
+                    credential_response: credentialResponse
+                })
+            });
+            log('Passkey registered!', 'success');
+            log(result);
+        } catch (e) {
+            log('Register failed: ' + JSON.stringify(e), 'error');
+        }
+    }
+
+    // --- Step 3: List passkeys ---
+    async function listPasskeys() {
+        try {
+            log('Listing passkeys...');
+            const passkeys = await authFetch('/passkeys');
+            log('Found ' + (Array.isArray(passkeys) ? passkeys.length : '?') + ' passkey(s)', 'success');
+            log(passkeys);
+        } catch (e) {
+            log('List failed: ' + JSON.stringify(e), 'error');
+        }
+    }
+
+    // --- Step 4: Sign in with passkey ---
+    async function signInWithPasskey() {
+        try {
+            accessToken = null; // Clear session
+            log('Fetching authentication options (no auth)...');
+            const challenge = await authFetch('/passkeys/authentication/options', {
+                method: 'POST',
+                body: '{}'
+            });
+            log('Got challenge: ' + challenge.challenge_id);
+            log(challenge);
+
+            const pk = challenge.options.publicKey || challenge.options;
+
+            if (pk.challenge) pk.challenge = b64urlToBuffer(pk.challenge);
+            if (pk.allowCredentials) {
+                pk.allowCredentials = pk.allowCredentials.map(c => ({...c, id: b64urlToBuffer(c.id)}));
+            }
+
+            log('Starting WebAuthn assertion (browser prompt)...');
+            const credential = await navigator.credentials.get({ publicKey: pk });
+            log('Assertion received: ' + credential.id, 'success');
+
+            const credentialResponse = {
+                id: credential.id,
+                rawId: bufferToB64url(credential.rawId),
+                response: {
+                    authenticatorData: bufferToB64url(credential.response.authenticatorData),
+                    clientDataJSON: bufferToB64url(credential.response.clientDataJSON),
+                    signature: bufferToB64url(credential.response.signature),
+                    userHandle: credential.response.userHandle ? bufferToB64url(credential.response.userHandle) : null
+                },
+                type: credential.type,
+                authenticatorAttachment: credential.authenticatorAttachment || null,
+                clientExtensionResults: credential.getClientExtensionResults()
+            };
+
+            log('Verifying with server...');
+            const session = await authFetch('/passkeys/authentication/verify', {
+                method: 'POST',
+                body: JSON.stringify({
+                    challenge_id: challenge.challenge_id,
+                    credential_response: credentialResponse
+                })
+            });
+            accessToken = session.access_token;
+            log('Signed in with passkey!', 'success');
+            log(session);
+            document.getElementById('btnRegister').disabled = false;
+            document.getElementById('btnList').disabled = false;
+        } catch (e) {
+            log('Sign in failed: ' + JSON.stringify(e), 'error');
+        }
+    }
+    </script>
+</body>
+</html>
