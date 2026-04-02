@@ -1,0 +1,4 @@
+node_modules/
+test-results/
+passkey-e2e.js
+webauthn-bridge.js

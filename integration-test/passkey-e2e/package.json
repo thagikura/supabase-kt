@@ -1,0 +1,11 @@
+{
+  "name": "passkey-e2e",
+  "private": true,
+  "scripts": {
+    "build:kt": "cd ../.. && ./gradlew :integration-test:passkey-e2e:kt:jsBrowserProductionWebpack && cp integration-test/passkey-e2e/kt/build/kotlin-webpack/js/productionExecutable/passkey-e2e.js integration-test/passkey-e2e/passkey-e2e.js && cp Auth/src/webMain/resources/webauthn-bridge.js integration-test/passkey-e2e/webauthn-bridge.js",
+    "test": "npm run build:kt && npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
+}

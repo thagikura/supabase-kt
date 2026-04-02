@@ -23,6 +23,7 @@ include("Supabase")
 // Test module
 include("test-common")
 include("integration-test")
+include("integration-test:passkey-e2e:kt")
 
 // Serializers
 include(":serializers:Moshi")

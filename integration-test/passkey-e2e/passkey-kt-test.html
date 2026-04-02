@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Passkey E2E - supabase-kt SDK</title>
+</head>
+<body>
+    <h1>Passkey E2E (supabase-kt SDK)</h1>
+    <div id="status">Loading...</div>
+    <script src="webauthn-bridge.js"></script>
+    <script src="passkey-e2e.js"></script>
+    <script>
+        // Wait for the module to load and expose __passkeyTest__
+        function waitForModule() {
+            return new Promise(function(resolve) {
+                if (window.__passkeyTest__) return resolve(window.__passkeyTest__);
+                var interval = setInterval(function() {
+                    if (window.__passkeyTest__) {
+                        clearInterval(interval);
+                        resolve(window.__passkeyTest__);
+                    }
+                }, 50);
+                setTimeout(function() { clearInterval(interval); resolve(null); }, 5000);
+            });
+        }
+        waitForModule().then(function(mod) {
+            document.getElementById('status').textContent = mod ? 'Module loaded' : 'Module failed to load';
+        });
+    </script>
+</body>
+</html>
