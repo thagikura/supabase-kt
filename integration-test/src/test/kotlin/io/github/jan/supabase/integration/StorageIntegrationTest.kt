@@ -73,6 +73,7 @@ class StorageIntegrationTest : IntegrationTestBase() {
     fun testUnauthenticatedUploadDenied() = runTest {
         val client = createTestClient()
         client.auth.awaitInitialization()
+        client.auth.clearSession()
         val bucket = client.storage.from(bucketId)
         val path = "unauth-test-${System.nanoTime()}.txt"
 
