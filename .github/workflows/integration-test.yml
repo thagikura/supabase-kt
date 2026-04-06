@@ -3,7 +3,7 @@ name: Integration Tests
 on:
   workflow_dispatch:
   push:
-    branches: [master]
+    branches: [master, fix/flaky-storage-test-ci]
   pull_request:
     branches: [master]
 
@@ -38,6 +38,12 @@ jobs:
 
       - name: Run integration tests
         run: ./gradlew :integration-test:test -Pintegration --stacktrace --configuration-cache
+
+      - name: SSH debug (tmate)
+        if: always()
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: true
 
       - name: Stop Supabase
         if: always()
